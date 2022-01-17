@@ -17,7 +17,7 @@ IMAGE?=cdkbot/hostpath-provisioner
 TAG_GIT=$(IMAGE):$(shell git rev-parse HEAD)
 TAG_LATEST=$(IMAGE):latest
 
-all: dependencies hostpath-provisioner image
+all: hostpath-provisioner image
 
 image:
 	docker build -t $(TAG_GIT) -f Dockerfile.scratch .
@@ -30,9 +30,6 @@ push:
 update-deployment:
 	microk8s.kubectl set image --namespace=kube-system deployment/hostpath-provisioner hostpath-provisioner=$(TAG_GIT)
 
-dependencies:
-	glide install -v
-
 hostpath-provisioner: $(shell find . -name "*.go")
 	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o hostpath-provisioner .
 
@@ -40,4 +37,4 @@ clean:
 	rm -rf vendor
 	rm hostpath-provisioner
 
-.PHONY: all clean image push dependencies update-deployment
+.PHONY: all clean image push update-deployment
