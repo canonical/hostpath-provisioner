@@ -13,27 +13,38 @@
 # limitations under the License.
 
 IMAGE?=cdkbot/hostpath-provisioner
+VERSION?=$(shell git rev-parse HEAD | head -c 8)
 
-TAG_GIT=$(IMAGE):$(shell git rev-parse HEAD)
+TAG_VERSION=$(IMAGE):$(VERSION)
 TAG_LATEST=$(IMAGE):latest
 
 all: hostpath-provisioner
 
-image:
-	docker build -t $(TAG_GIT) -f Dockerfile.scratch .
-	docker tag $(TAG_GIT) $(TAG_LATEST)
+# Build Docker images
+build-images: build-image-amd64 build-image-arm64 build-image-s390x
+build-image-%:
+	docker build -t ${TAG_VERSION}-$* . --build-arg arch=$*
 
-push:
-	docker push $(TAG_GIT)
-	docker push $(TAG_LATEST)
+# Push Docker images
+push-images: push-image-amd64 push-image-arm64 push-image-s390x
+push-image-%: build-image-%
+	docker image push $(TAG_VERSION)-$*
 
-update-deployment:
-	microk8s.kubectl set image --namespace=kube-system deployment/hostpath-provisioner hostpath-provisioner=$(TAG_GIT)
+# Push Docker manifests for multi-arch
+manifest: manifest-$(VERSION)
+manifest-%: push-images
+	docker manifest rm $(IMAGE):$* || true
+	docker manifest create $(IMAGE):$* --amend $(TAG_VERSION)-amd64 --amend $(TAG_VERSION)-arm64 --amend $(TAG_VERSION)-s390x
+	docker manifest annotate $(IMAGE):$* $(TAG_VERSION)-amd64 --arch=amd64
+	docker manifest annotate $(IMAGE):$* $(TAG_VERSION)-arm64 --arch=arm64
+	docker manifest annotate $(IMAGE):$* $(TAG_VERSION)-s390x --arch=s390x
+	docker manifest push $(IMAGE):$*
 
+# Build
 hostpath-provisioner: $(shell find . -name "*.go")
 	CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o hostpath-provisioner .
 
 clean:
 	rm hostpath-provisioner
 
-.PHONY: all clean image push update-deployment
+.PHONY: all build-images push-images manifests build-image-* push-image-* manifest-*
