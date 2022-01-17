@@ -25,17 +25,16 @@ import (
 	"syscall"
 	"time"
 
-	"sigs.k8s.io/sig-storage-lib-external-provisioner/v6/controller"
-
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	klog "k8s.io/klog/v2"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/v7/controller"
 )
 
 const (
-	resyncPeriod              = 15 * time.Second
+	resyncPeriod = 15 * time.Second
 	// The provisioner name "microk8s.io/hostpath" must be the one used in the storage class manifest
 	provisionerName           = "microk8s.io/hostpath"
 	exponentialBackOffOnError = false
@@ -152,20 +151,13 @@ func main() {
 		klog.Fatalf("Failed to create client: %v", err)
 	}
 
-	// The controller needs to know what the server version is because out-of-tree
-	// provisioners aren't officially supported until 1.5
-	serverVersion, err := clientset.Discovery().ServerVersion()
-	if err != nil {
-		klog.Fatalf("Error getting server version: %v", err)
-	}
-
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
 	hostPathProvisioner := NewHostPathProvisioner()
 
 	// Start the provision controller which will dynamically provision hostPath
 	// PVs
-	pc := controller.NewProvisionController(clientset, provisionerName, hostPathProvisioner, serverVersion.GitVersion,
+	pc := controller.NewProvisionController(clientset, provisionerName, hostPathProvisioner,
 		controller.ExponentialBackOffOnError(exponentialBackOffOnError),
 		controller.ResyncPeriod(resyncPeriod),
 		controller.FailedProvisionThreshold(failedRetryThreshold),
