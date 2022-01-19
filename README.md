@@ -1,51 +1,35 @@
 # Hostpath provisioner
-This is the demo code in the [kubernetes-incubator](https://github.com/kubernetes-incubator/external-storage/tree/master/docs/demo/hostpath-provisioner)-Project,
-along with the modifications proposed [here](https://github.com/MaZderMind/hostpath-provisioner).
 
-## Build and Upload to DockerHub
-This is a go project so we need to work through its dependencies.
+This is the hostpath-provisioner used in [MicroK8s](https://microk8s.io) to provide simple hostpath-based storage.
 
-We first [install golang](https://github.com/golang/go/wiki/Ubuntu)
-and make sure `/snap/bin` is in you path 
+It is based on [the demo hostpath-provisioner from kubernetes-incubator](https://github.com/kubernetes-incubator/external-storage/tree/master/docs/demo/hostpath-provisioner), and contains modifications proposed [here](https://github.com/MaZderMind/hostpath-provisioner).
 
 
+## Build Docker images
+
+```bash
+docker login
+make manifest VERSION=1.1.0
+
+# push latest tag
+make manifest-latest VERSION=1.1.0
 ```
+
+## Release
+
+Docker images for the hostpath-provisioner are released to [DockerHub](https://hub.docker.com/r/cdkbot/hostpath-provisioner), and they are available for amd64, arm64, s390x architectures.
+
+## Build for development
+
+[Go](https://golang.org) version 1.17 or newer is required to build this project.
+
+```bash
 sudo snap install --classic go
+go version
 ```
 
-Set the GOPATH and the rest of environment variables with something similar to this:
+After Go has been installed, simply use `make` to build hostpath-provisioner into a single static binary:
 
-```
-export GOPATH=$HOME/go
-export GOBIN=$GOPATH/bin
-export PATH=$GOBIN:$PATH
-mkdir -p $GOBIN
-```
-
-Dependency management is done through [glide](https://github.com/Masterminds/glide)
-
-```
-curl https://glide.sh/get | sh
-```
-
-We also need docker to create and push our image on Docker hub
-
-```
-sudo apt-get install docker.io
-sudo usermod -a -G docker $USER
-```
-
-At this point we are able to get the source code and compile it
-```
-go get github.com/juju-solutions/hostpath-provisioner
-cd $GOPATH/src/github.com/juju-solutions/hostpath-provisioner
+```bash
 make
 ```
-
-To build and push the docker image you need to first login in as cdkbot
-```
-docker login
-make image
-make push
-```
-
