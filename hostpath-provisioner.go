@@ -107,9 +107,8 @@ func NewHostPathProvisioner(clientset *kubernetes.Clientset) controller.Provisio
 
 var _ controller.Provisioner = &hostPathProvisioner{}
 
-// runOnNode is used to perform provisioning and deleting of pvc directories on any node
-// in the cluster.
-func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, command []string) error {
+// runOnNode is used to perform provisioning and deleting of pvc directories on any node in the cluster.
+func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, command []string) (*v1.Pod, error) {
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("hostpath-provisioner-%s-", node),
@@ -119,9 +118,6 @@ func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, comman
 		},
 		Spec: v1.PodSpec{
 			RestartPolicy: v1.RestartPolicyNever,
-			NodeSelector: map[string]string{
-				"kubernetes.io/hostname": node,
-			},
 			Containers: []v1.Container{{
 				Name:    "busybox",
 				Image:   p.busyboxImage,
@@ -150,43 +146,49 @@ func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, comman
 		},
 	}
 
+	if node != "" {
+		pod.Spec.NodeSelector = map[string]string{
+			"kubernetes.io/hostname": node,
+		}
+	}
+
 	createdPod, err := p.pods.Create(ctx, pod, metav1.CreateOptions{
 		FieldValidation: "Strict",
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create provisioner pod: %w", err)
+		return nil, fmt.Errorf("failed to create pod: %w", err)
 	}
 
 waitLoop:
 	for i := 0; i < 100; i++ {
 		time.Sleep(5 * time.Second)
-		klog.V(1).Infof("(retry %d) waiting for provisioner pod: %s", i, createdPod.Name)
-		getPod, err := p.pods.Get(ctx, createdPod.Name, metav1.GetOptions{})
+		klog.V(1).Infof("(retry %d) waiting for pod: %s", i, createdPod.Name)
+		pod, err = p.pods.Get(ctx, createdPod.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("failed to get pod: %s: %s", createdPod.Name, err)
 			continue waitLoop
 		}
 
-		switch getPod.Status.Phase {
+		switch pod.Status.Phase {
 		case v1.PodSucceeded:
-			klog.Infof("provisioner pod completed: %s", createdPod.Name)
+			klog.Infof("pod completed: %s", createdPod.Name)
 			if err := p.pods.Delete(ctx, createdPod.Name, *metav1.NewDeleteOptions(0)); err != nil {
-				klog.Warningf("failed to delete provisioner pod %s: %s", createdPod.Name, err)
+				klog.Warningf("failed to delete pod %s: %s", createdPod.Name, err)
 			}
-			break waitLoop
+			return pod, nil
 		case v1.PodFailed:
-			klog.Infof("provisioner pod failed: %s", createdPod.Name)
+			klog.Infof("pod failed: %s", createdPod.Name)
 			if err := p.pods.Delete(ctx, createdPod.Name, *metav1.NewDeleteOptions(0)); err != nil {
-				klog.Warningf("failed to delete provisioner pod %s: %s", createdPod.Name, err)
+				klog.Warningf("failed to delete pod %s: %s", createdPod.Name, err)
 			}
-			return fmt.Errorf("provisioner pod failed: %s", createdPod.Name)
+			return pod, fmt.Errorf("pod failed: %s", createdPod.Name)
 		default:
-			klog.V(1).Infof("(retry %d) provisioner pod %s: %s", createdPod.Name, getPod.Status.Phase)
+			klog.V(1).Infof("(retry %d) pod %s: %s", createdPod.Name, pod.Status.Phase)
 			continue waitLoop
 		}
 	}
 
-	return nil
+	return pod, nil
 }
 
 // Provision creates a storage asset and returns a PV object representing it.
@@ -194,7 +196,14 @@ func (p *hostPathProvisioner) Provision(ctx context.Context, options controller.
 	path := path.Join(p.pvDir, fmt.Sprintf("%s-%s-%s", options.PVC.Namespace, options.PVC.Name, options.PVName))
 	klog.Infof("creating backing directory: %v", path)
 
-	if err := p.runOnNode(ctx, options.SelectedNode.Name, []string{"sh", "-c", fmt.Sprintf("mkdir -m 0777 -p %s", path)}); err != nil {
+	var selectedNodeName string
+	if node := options.SelectedNode; node != nil {
+		selectedNodeName = node.Name
+	} else {
+		klog.Warningf("persistent volume for %q does not have a selected node, this could cause node affinity issues. you can avoid these issues by setting \"VolumeBindingMode: WaitForFirstConsumer\" on the storage class", options.PVC.Name)
+	}
+	pod, err := p.runOnNode(ctx, selectedNodeName, []string{"sh", "-c", fmt.Sprintf("mkdir -m 0777 -p %s", path)})
+	if err != nil {
 		klog.Infof("failed to create backing directory: %s", err)
 		return nil, controller.ProvisioningFinished, fmt.Errorf("failed to create backing directory: %s", err)
 	}
@@ -229,7 +238,7 @@ func (p *hostPathProvisioner) Provision(ctx context.Context, options controller.
 						MatchExpressions: []v1.NodeSelectorRequirement{{
 							Key:      "kubernetes.io/hostname",
 							Operator: "In",
-							Values:   []string{options.SelectedNode.Name},
+							Values:   []string{pod.Spec.NodeName},
 						}},
 					}},
 				},
@@ -269,7 +278,7 @@ func (p *hostPathProvisioner) Delete(ctx context.Context, volume *v1.PersistentV
 
 	path := volume.Spec.PersistentVolumeSource.HostPath.Path
 	klog.Infof("removing backing directory: %s", path)
-	if err := p.runOnNode(ctx, node, []string{"rm", "-rf", path}); err != nil {
+	if _, err := p.runOnNode(ctx, node, []string{"rm", "-rf", path}); err != nil {
 		klog.Warningf("failed to remove backing directory: %s", path)
 	}
 
