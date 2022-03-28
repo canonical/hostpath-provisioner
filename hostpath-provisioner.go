@@ -20,15 +20,18 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path"
 	"syscall"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	klog "k8s.io/klog/v2"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/v7/controller"
 )
@@ -39,9 +42,17 @@ const (
 	provisionerName           = "microk8s.io/hostpath"
 	exponentialBackOffOnError = false
 	failedRetryThreshold      = 5
+	defaultBusyboxImage       = "busybox:latest"
 )
 
 var kubeconfigFilePath = os.Getenv("KUBECONFIG")
+
+// podInterface is used to manage pods in a single namespace.
+type podInterface interface {
+	Create(context.Context, *v1.Pod, metav1.CreateOptions) (*v1.Pod, error)
+	Get(context.Context, string, metav1.GetOptions) (*v1.Pod, error)
+	Delete(context.Context, string, metav1.DeleteOptions) error
+}
 
 type hostPathProvisioner struct {
 	// The directory to create PV-backing directories in
@@ -54,10 +65,20 @@ type hostPathProvisioner struct {
 	// Override the default reclaim-policy of dynamicly provisioned volumes
 	// (which is remove).
 	reclaimPolicy string
+
+	// pods is a clientset.CoreV1().Pods(namespace)
+	pods podInterface
+
+	// busyboxImage is the busybox image to use
+	busyboxImage string
 }
 
 // NewHostPathProvisioner creates a new hostpath provisioner
-func NewHostPathProvisioner() controller.Provisioner {
+func NewHostPathProvisioner(clientset *kubernetes.Clientset) controller.Provisioner {
+	namespace := os.Getenv("NAMESPACE")
+	if namespace == "" {
+		klog.Fatal("env variable NAMESPACE must be set to the namespace of the provisioner")
+	}
 	nodeName := os.Getenv("NODE_NAME")
 	if nodeName == "" {
 		klog.Fatal("env variable NODE_NAME must be set so that this provisioner can identify itself")
@@ -68,23 +89,114 @@ func NewHostPathProvisioner() controller.Provisioner {
 		klog.Fatal("env variable PV_DIR must be set so that this provisioner knows where to place its data")
 	}
 
+	busyboxImage := os.Getenv("BUSYBOX_IMAGE")
+	if busyboxImage == "" {
+		busyboxImage = defaultBusyboxImage
+	}
+	klog.Infof("Using busybox image: %q", busyboxImage)
+
 	reclaimPolicy := os.Getenv("PV_RECLAIM_POLICY")
 	return &hostPathProvisioner{
 		pvDir:         pvDir,
 		identity:      nodeName,
 		reclaimPolicy: reclaimPolicy,
+		pods:          clientset.CoreV1().Pods(namespace),
+		busyboxImage:  busyboxImage,
 	}
 }
 
 var _ controller.Provisioner = &hostPathProvisioner{}
 
+// runOnNode is used to perform provisioning and deleting of pvc directories on any node
+// in the cluster.
+func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, command []string) error {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("hostpath-provisioner-%s-", node),
+			Labels: map[string]string{
+				"microk8s.hostpath.io/managed-by": p.identity,
+			},
+		},
+		Spec: v1.PodSpec{
+			RestartPolicy: v1.RestartPolicyNever,
+			NodeSelector: map[string]string{
+				"kubernetes.io/hostname": node,
+			},
+			Containers: []v1.Container{{
+				Name:    "busybox",
+				Image:   p.busyboxImage,
+				Command: command,
+				VolumeMounts: []v1.VolumeMount{{
+					Name:      "hostpath-pv-dir",
+					MountPath: p.pvDir,
+				}},
+				SecurityContext: &v1.SecurityContext{
+					RunAsUser: &[]int64{0}[0],
+				},
+				Resources: v1.ResourceRequirements{
+					Limits: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("16Mi")},
+					// Requests: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("16Mi")},
+				},
+			}},
+			Volumes: []v1.Volume{{
+				Name: "hostpath-pv-dir",
+				VolumeSource: v1.VolumeSource{
+					HostPath: &v1.HostPathVolumeSource{
+						Path: p.pvDir,
+						Type: &[]v1.HostPathType{"DirectoryOrCreate"}[0],
+					},
+				},
+			}},
+		},
+	}
+
+	createdPod, err := p.pods.Create(ctx, pod, metav1.CreateOptions{
+		FieldValidation: "Strict",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create provisioner pod: %w", err)
+	}
+
+waitLoop:
+	for i := 0; i < 100; i++ {
+		time.Sleep(5 * time.Second)
+		klog.V(1).Infof("(retry %d) waiting for provisioner pod: %s", i, createdPod.Name)
+		getPod, err := p.pods.Get(ctx, createdPod.Name, metav1.GetOptions{})
+		if err != nil {
+			klog.Errorf("failed to get pod: %s: %s", createdPod.Name, err)
+			continue waitLoop
+		}
+
+		switch getPod.Status.Phase {
+		case v1.PodSucceeded:
+			klog.Infof("provisioner pod completed: %s", createdPod.Name)
+			if err := p.pods.Delete(ctx, createdPod.Name, *metav1.NewDeleteOptions(0)); err != nil {
+				klog.Warningf("failed to delete provisioner pod %s: %s", createdPod.Name, err)
+			}
+			break waitLoop
+		case v1.PodFailed:
+			klog.Infof("provisioner pod failed: %s", createdPod.Name)
+			if err := p.pods.Delete(ctx, createdPod.Name, *metav1.NewDeleteOptions(0)); err != nil {
+				klog.Warningf("failed to delete provisioner pod %s: %s", createdPod.Name, err)
+			}
+			return fmt.Errorf("provisioner pod failed: %s", createdPod.Name)
+		default:
+			klog.V(1).Infof("(retry %d) provisioner pod %s: %s", createdPod.Name, getPod.Status.Phase)
+			continue waitLoop
+		}
+	}
+
+	return nil
+}
+
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *hostPathProvisioner) Provision(ctx context.Context, options controller.ProvisionOptions) (*v1.PersistentVolume, controller.ProvisioningState, error) {
-	path := path.Join(p.pvDir, options.PVC.Namespace+"-"+options.PVC.Name+"-"+options.PVName)
+	path := path.Join(p.pvDir, fmt.Sprintf("%s-%s-%s", options.PVC.Namespace, options.PVC.Name, options.PVName))
 	klog.Infof("creating backing directory: %v", path)
 
-	if err := os.MkdirAll(path, 0777); err != nil {
-		return nil, controller.ProvisioningFinished, err
+	if err := p.runOnNode(ctx, options.SelectedNode.Name, []string{"sh", "-c", fmt.Sprintf("mkdir -m 0777 -p %s", path)}); err != nil {
+		klog.Infof("failed to create backing directory: %s", err)
+		return nil, controller.ProvisioningFinished, fmt.Errorf("failed to create backing directory: %s", err)
 	}
 
 	reclaimPolicy := *options.StorageClass.ReclaimPolicy
@@ -108,6 +220,18 @@ func (p *hostPathProvisioner) Provision(ctx context.Context, options controller.
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				HostPath: &v1.HostPathVolumeSource{
 					Path: path,
+					Type: &[]v1.HostPathType{"DirectoryOrCreate"}[0],
+				},
+			},
+			NodeAffinity: &v1.VolumeNodeAffinity{
+				Required: &v1.NodeSelector{
+					NodeSelectorTerms: []v1.NodeSelectorTerm{{
+						MatchExpressions: []v1.NodeSelectorRequirement{{
+							Key:      "kubernetes.io/hostname",
+							Operator: "In",
+							Values:   []string{options.SelectedNode.Name},
+						}},
+					}},
 				},
 			},
 		},
@@ -127,10 +251,26 @@ func (p *hostPathProvisioner) Delete(ctx context.Context, volume *v1.PersistentV
 		return &controller.IgnoredError{Reason: "identity annotation on PV does not match ours"}
 	}
 
+	// find node from NodeAffinity
+	var node string
+	if affinity := volume.Spec.NodeAffinity; affinity != nil {
+		if required := affinity.Required; required != nil {
+			if terms := required.NodeSelectorTerms; len(terms) > 0 && len(terms[0].MatchExpressions) > 0 {
+				if expr := terms[0].MatchExpressions[0]; expr.Key == "kubernetes.io/hostname" && expr.Operator == "In" && len(expr.Values) == 1 {
+					node = expr.Values[0]
+				}
+			}
+		}
+	}
+	if node == "" {
+		klog.Warningf("could not find node for volume: %s", volume.Name)
+		return nil
+	}
+
 	path := volume.Spec.PersistentVolumeSource.HostPath.Path
-	klog.Info("removing backing directory: %v", path)
-	if err := os.RemoveAll(path); err != nil {
-		return err
+	klog.Infof("removing backing directory: %s", path)
+	if err := p.runOnNode(ctx, node, []string{"rm", "-rf", path}); err != nil {
+		klog.Warningf("failed to remove backing directory: %s", path)
 	}
 
 	return nil
@@ -163,7 +303,7 @@ func main() {
 
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
-	hostPathProvisioner := NewHostPathProvisioner()
+	hostPathProvisioner := NewHostPathProvisioner(clientset)
 
 	// Start the provision controller which will dynamically provision hostPath
 	// PVs
