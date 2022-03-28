@@ -41,6 +41,8 @@ const (
 	failedRetryThreshold      = 5
 )
 
+var kubeconfigFilePath = os.Getenv("KUBECONFIG")
+
 type hostPathProvisioner struct {
 	// The directory to create PV-backing directories in
 	pvDir string
@@ -138,11 +140,18 @@ func main() {
 	syscall.Umask(0)
 
 	flag.Parse()
-	flag.Set("logtostderr", "true")
 
-	// Create an InClusterConfig and use it to create a client for the controller
-	// to use to communicate with Kubernetes
-	config, err := rest.InClusterConfig()
+	// Use the provided kubeconfig file, or
+	var loadConfig func() (*rest.Config, error)
+	if kubeconfigFilePath == "" {
+		loadConfig = rest.InClusterConfig
+	} else {
+		loadConfig = func() (*rest.Config, error) {
+			return clientcmd.BuildConfigFromFlags("", kubeconfigFilePath)
+		}
+	}
+
+	config, err := loadConfig()
 	if err != nil {
 		klog.Fatalf("Failed to create config: %v", err)
 	}
