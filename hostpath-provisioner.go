@@ -139,6 +139,7 @@ func (p *hostPathProvisioner) Delete(ctx context.Context, volume *v1.PersistentV
 func main() {
 	syscall.Umask(0)
 
+	klog.InitFlags(nil)
 	flag.Parse()
 
 	// Use the provided kubeconfig file, or
