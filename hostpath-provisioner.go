@@ -42,7 +42,7 @@ const (
 	provisionerName           = "microk8s.io/hostpath"
 	exponentialBackOffOnError = false
 	failedRetryThreshold      = 5
-	defaultBusyboxImage       = "busybox:latest"
+	defaultBusyboxImage       = "busybox:1.34.1"
 )
 
 var kubeconfigFilePath = os.Getenv("KUBECONFIG")
