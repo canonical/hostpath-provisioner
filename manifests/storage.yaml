@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: balchu-hostpath-provisioner
+  name: hostpath-provisioner
   labels:
     k8s-app: hostpath-provisioner
   namespace: kube-system
@@ -12,13 +12,11 @@ spec:
 
   selector:
     matchLabels:
-      k8s-app: balchu-hostpath-provisioner
-
+      k8s-app: hostpath-provisioner
   template:
     metadata:
       labels:
-        k8s-app: balchu-hostpath-provisioner
-
+        k8s-app: hostpath-provisioner
     spec:
       containers:
         - name: hostpath-provisioner
