@@ -39,7 +39,7 @@ import (
 const (
 	resyncPeriod = 15 * time.Second
 	// The provisioner name "microk8s.io/hostpath" must be the one used in the storage class manifest
-	provisionerName           = "microk8s.io/hostpath"
+	provisionerName           = "balchu.io/hostpath"
 	exponentialBackOffOnError = false
 	failedRetryThreshold      = 5
 	defaultBusyboxImage       = "busybox:1.34.1"
@@ -84,7 +84,7 @@ func NewHostPathProvisioner(clientset *kubernetes.Clientset) controller.Provisio
 		klog.Fatal("env variable NODE_NAME must be set so that this provisioner can identify itself")
 	}
 
-	pvDir := os.Getenv("PV_DIR")
+	pvDir := os.Getenv("DEFAULT_PV_DIR")
 	if pvDir == "" {
 		klog.Fatal("env variable PV_DIR must be set so that this provisioner knows where to place its data")
 	}
@@ -193,7 +193,13 @@ waitLoop:
 
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *hostPathProvisioner) Provision(ctx context.Context, options controller.ProvisionOptions) (*v1.PersistentVolume, controller.ProvisioningState, error) {
-	path := path.Join(p.pvDir, fmt.Sprintf("%s-%s-%s", options.PVC.Namespace, options.PVC.Name, options.PVName))
+	pvDir := p.pvDir
+	storageClassPvDir, ok := options.StorageClass.Parameters["pvDir"]
+
+	if ok {
+		pvDir = storageClassPvDir
+	}
+	path := path.Join(pvDir, fmt.Sprintf("%s-%s-%s", options.PVC.Namespace, options.PVC.Name, options.PVName))
 	klog.Infof("creating backing directory: %v", path)
 
 	var selectedNodeName string

@@ -3,7 +3,19 @@ apiVersion: v1
 metadata:
   name: hostpath-test-claim
 spec:
-#  storageClassName: "hostpath"
+  storageClassName: "default-path"
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Mi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: hostpath-test-claim2
+spec:
+  storageClassName: "ssd-hostpath"
   accessModes:
     - ReadWriteMany
   resources:
