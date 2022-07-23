@@ -39,7 +39,7 @@ import (
 const (
 	resyncPeriod = 15 * time.Second
 	// The provisioner name "microk8s.io/hostpath" must be the one used in the storage class manifest
-	provisionerName           = "balchu.io/hostpath"
+	provisionerName           = "microk8s.io/hostpath"
 	exponentialBackOffOnError = false
 	failedRetryThreshold      = 5
 	defaultBusyboxImage       = "busybox:1.34.1"
