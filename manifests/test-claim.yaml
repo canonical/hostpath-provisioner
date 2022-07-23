@@ -3,7 +3,7 @@ apiVersion: v1
 metadata:
   name: hostpath-test-claim
 spec:
-  storageClassName: "default-path"
+  storageClassName: "microk8s-hostpath"
   accessModes:
     - ReadWriteMany
   resources:
