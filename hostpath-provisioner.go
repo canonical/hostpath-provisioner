@@ -130,8 +130,8 @@ func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, comman
 					RunAsUser: &[]int64{0}[0],
 				},
 				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("16Mi")},
-					// Requests: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("16Mi")},
+					Limits:   v1.ResourceList{v1.ResourceCPU: resource.MustParse("100m"), v1.ResourceMemory: resource.MustParse("16Mi")},
+					Requests: v1.ResourceList{v1.ResourceCPU: resource.MustParse("15m"), v1.ResourceMemory: resource.MustParse("16Mi")},
 				},
 			}},
 			Volumes: []v1.Volume{{
