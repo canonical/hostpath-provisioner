@@ -194,9 +194,7 @@ waitLoop:
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *hostPathProvisioner) Provision(ctx context.Context, options controller.ProvisionOptions) (*v1.PersistentVolume, controller.ProvisioningState, error) {
 	pvDir := p.pvDir
-	storageClassPvDir, ok := options.StorageClass.Parameters["pvDir"]
-
-	if ok {
+	if storageClassPvDir, ok := options.StorageClass.Parameters["pvDir"]; ok {
 		pvDir = storageClassPvDir
 	}
 	path := path.Join(pvDir, fmt.Sprintf("%s-%s-%s", options.PVC.Namespace, options.PVC.Name, options.PVName))
