@@ -4,20 +4,19 @@ This is the hostpath-provisioner used in [MicroK8s](https://microk8s.io) to prov
 
 It is based on [the demo hostpath-provisioner from kubernetes-incubator](https://github.com/kubernetes-incubator/external-storage/tree/master/docs/demo/hostpath-provisioner), and contains modifications proposed [here](https://github.com/MaZderMind/hostpath-provisioner).
 
-
 ## Build Docker images
 
 ```bash
 docker login
-make manifest VERSION=1.1.0
+make manifest VERSION=1.3.0
 
 # push latest tag
-make manifest-latest VERSION=1.1.0
+make manifest-latest VERSION=1.3.0
 ```
 
 ## Release
 
-Docker images for the hostpath-provisioner are released to [DockerHub](https://hub.docker.com/r/cdkbot/hostpath-provisioner), and they are available for amd64, arm64, s390x architectures.
+Docker images for the hostpath-provisioner are released to [DockerHub](https://hub.docker.com/r/cdkbot/hostpath-provisioner), and they are available for amd64, arm64, s390x, ppc64le architectures.
 
 ## Build for development
 
