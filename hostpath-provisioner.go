@@ -84,7 +84,7 @@ func NewHostPathProvisioner(clientset *kubernetes.Clientset) controller.Provisio
 		klog.Fatal("env variable NODE_NAME must be set so that this provisioner can identify itself")
 	}
 
-	pvDir := os.Getenv("DEFAULT_PV_DIR")
+	pvDir := os.Getenv("PV_DIR")
 	if pvDir == "" {
 		klog.Fatal("env variable PV_DIR must be set so that this provisioner knows where to place its data")
 	}
