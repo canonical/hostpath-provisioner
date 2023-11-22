@@ -1,0 +1,72 @@
+# Default values for hostpath-provisioner.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+provisioner:
+  image:
+    repository: cdkbot/hostpath-provisioner
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "1.4.2"
+
+busybox:
+  image:
+    repository: busybox
+    tag: "1.28.4"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+storageClass:
+  name: "hostpath-storage"
+  isDefault: true
+  provisioner: "k8s.canonical.com/hostpath"
+  reclaimPolicy: "Delete"
+  pvDir: "/var/snap/k8s/common/default-storage"
+
+clusterRole:
+  name: "hostpath-provisioner"
+
+clusterRoleBinding:
+  name: "hostpath-provisioner"
+
+serviceAccount:
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: "hostpath-provisioner"
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

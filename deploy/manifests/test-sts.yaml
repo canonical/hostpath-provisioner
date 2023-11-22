@@ -41,7 +41,7 @@ spec:
   - metadata:
       name: volume
     spec:
-      storageClassName: microk8s-hostpath
+      storageClassName: hostpath-storage
       accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:

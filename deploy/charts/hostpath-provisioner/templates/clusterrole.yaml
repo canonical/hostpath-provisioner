@@ -1,0 +1,60 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.clusterRole.name }}
+  labels:
+    {{- include "hostpath-provisioner.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources:
+      - persistentvolumeclaims
+    verbs:
+      - list
+      - get
+      - watch
+      - update
+  - apiGroups: [""]
+    resources:
+      - persistentvolumes
+    verbs:
+      - list
+      - get
+      - update
+      - watch
+      - create
+      - delete
+  - apiGroups: [""]
+    resources:
+      - endpoints
+    verbs:
+      - list
+      - get
+      - update
+      - watch
+      - create
+      - delete
+  - apiGroups: [""]
+    resources:
+      - events
+    verbs:
+      - create
+      - list
+      - patch
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs:
+      - list
+      - watch
+  - apiGroups: [""]
+    resources:
+      - pods
+    verbs:
+      - get
+      - create
+      - delete
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs:
+      - get

@@ -1,0 +1,3 @@
+WARNING: Hostpath storage is not suitable for production environments.
+         The storage class enabled does not persist volumes across nodes.
+         A hostpath volume can grow beyond the size limit set in the volume claim manifest.
