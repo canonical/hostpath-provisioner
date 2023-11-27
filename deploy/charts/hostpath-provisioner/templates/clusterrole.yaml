@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Values.clusterRole.name }}
+  name: {{ print (include "hostpath-provisioner.fullname" .) "-cr" }}
   labels:
     {{- include "hostpath-provisioner.labels" . | nindent 4 }}
 rules:
@@ -58,3 +58,11 @@ rules:
       - nodes
     verbs:
       - get
+  - apiGroups: ["coordination.k8s.io"]
+    resources:
+      - "leases"
+    verbs:
+      - "get"
+      - "create"
+      - "update"
+      - "patch"

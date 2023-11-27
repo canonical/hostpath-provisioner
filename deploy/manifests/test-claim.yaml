@@ -3,7 +3,7 @@ apiVersion: v1
 metadata:
   name: hostpath-test-claim
 spec:
-  storageClassName: "hostpath-storage"
+  storageClassName: "hostpath"
   accessModes:
     - ReadWriteMany
   resources:

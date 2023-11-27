@@ -41,7 +41,7 @@ spec:
   - metadata:
       name: volume
     spec:
-      storageClassName: hostpath-storage
+      storageClassName: hostpath
       accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:
