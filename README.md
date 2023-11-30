@@ -1,6 +1,6 @@
 # Hostpath provisioner
 
-This is the hostpath-provisioner used in [MicroK8s](https://microk8s.io) to provide simple hostpath-based storage.
+This is the hostpath-provisioner used in [Canonical Kubernetes](https://ubuntu.com/kubernetes) to provide simple hostpath-based storage.
 
 It is based on [the demo hostpath-provisioner from kubernetes-incubator](https://github.com/kubernetes-incubator/external-storage/tree/master/docs/demo/hostpath-provisioner), and contains modifications proposed [here](https://github.com/MaZderMind/hostpath-provisioner).
 

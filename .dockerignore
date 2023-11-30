@@ -4,3 +4,4 @@ Dockerfile
 manifests/
 README.md
 hostpath-provisioner
+deploy/
