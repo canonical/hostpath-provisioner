@@ -1,0 +1,19 @@
+apiVersion: v1
+entries:
+  hostpath-provisioner:
+  - apiVersion: v2
+    appVersion: 1.5.0
+    created: "2023-11-30T06:52:26.945930038Z"
+    description: The helm chart to deploy hostpath-provisioner from Canonical Kubernetes.
+    digest: b85181873a9fc42ac73cb0dfe064e9b1d2e8c2a398a466bbfd0a6a99c0818d3d
+    maintainers:
+    - name: Canonical Kubernetes Team
+      url: https://github.com/canonical
+    name: hostpath-provisioner
+    sources:
+    - https://github.com/canonical/hostpath-provisioner.git
+    type: application
+    urls:
+    - https://github.com/canonical/hostpath-provisioner/releases/download/helm-chart-hostpath-provisioner-0.1.0/hostpath-provisioner-0.1.0.tgz
+    version: 0.1.0
+generated: "2023-11-30T06:52:26.945942381Z"
