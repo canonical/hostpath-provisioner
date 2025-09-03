@@ -34,7 +34,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	klog "k8s.io/klog/v2"
-	"sigs.k8s.io/sig-storage-lib-external-provisioner/v9/controller"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/v11/controller"
 )
 
 const (
@@ -292,6 +292,8 @@ func (p *hostPathProvisioner) Delete(ctx context.Context, volume *v1.PersistentV
 }
 
 func main() {
+	ctx := context.Background()
+
 	syscall.Umask(0)
 
 	klog.InitFlags(nil)
@@ -322,7 +324,7 @@ func main() {
 
 	// Start the provision controller which will dynamically provision hostPath
 	// PVs
-	pc := controller.NewProvisionController(clientset, provisionerName, hostPathProvisioner,
+	pc := controller.NewProvisionController(ctx, clientset, provisionerName, hostPathProvisioner,
 		controller.ExponentialBackOffOnError(exponentialBackOffOnError),
 		controller.ResyncPeriod(resyncPeriod),
 		controller.FailedProvisionThreshold(failedRetryThreshold),
@@ -330,5 +332,5 @@ func main() {
 	)
 
 	// Never stops.
-	pc.Run(context.Background())
+	pc.Run(ctx)
 }
