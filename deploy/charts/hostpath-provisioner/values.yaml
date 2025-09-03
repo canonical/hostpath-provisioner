@@ -18,11 +18,11 @@ nameOverride: ""
 fullnameOverride: ""
 
 storageClass:
-  name: "hostpath"
+  name: "microk8s-hostpath"
   isDefault: true
-  provisioner: "k8s.canonical.com/hostpath"
+  provisioner: "microk8s.io/hostpath"
   reclaimPolicy: "Delete"
-  pvDir: "/var/snap/k8s/common/default-storage"
+  pvDir: "/var/snap/microk8s/common/default-storage"
   volumeBindingMode: "WaitForFirstConsumer"
 
 serviceAccount:
