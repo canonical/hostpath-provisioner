@@ -34,13 +34,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	klog "k8s.io/klog/v2"
-	"sigs.k8s.io/sig-storage-lib-external-provisioner/v9/controller"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/v11/controller"
 )
 
 const (
 	resyncPeriod = 15 * time.Second
-	// The provisioner name must be the one used in the storage class manifest
-	provisionerName           = "k8s.canonical.com/hostpath"
+	// The provisioner name "microk8s.io/hostpath" must be the one used in the storage class manifest
+	provisionerName           = "microk8s.io/hostpath"
 	exponentialBackOffOnError = false
 	failedRetryThreshold      = 5
 	defaultBusyboxImage       = "busybox:1.34.1"
@@ -114,7 +114,7 @@ func (p *hostPathProvisioner) runOnNode(ctx context.Context, node string, pvDir 
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("hostpath-provisioner-%s-", node),
 			Labels: map[string]string{
-				"k8s.hostpath.io/managed-by": p.identity,
+				"microk8s.hostpath.io/managed-by": p.identity,
 			},
 		},
 		Spec: v1.PodSpec{
@@ -292,6 +292,8 @@ func (p *hostPathProvisioner) Delete(ctx context.Context, volume *v1.PersistentV
 }
 
 func main() {
+	ctx := context.Background()
+
 	syscall.Umask(0)
 
 	klog.InitFlags(nil)
@@ -322,7 +324,7 @@ func main() {
 
 	// Start the provision controller which will dynamically provision hostPath
 	// PVs
-	pc := controller.NewProvisionController(clientset, provisionerName, hostPathProvisioner,
+	pc := controller.NewProvisionController(ctx, clientset, provisionerName, hostPathProvisioner,
 		controller.ExponentialBackOffOnError(exponentialBackOffOnError),
 		controller.ResyncPeriod(resyncPeriod),
 		controller.FailedProvisionThreshold(failedRetryThreshold),
@@ -330,5 +332,5 @@ func main() {
 	)
 
 	// Never stops.
-	pc.Run(context.Background())
+	pc.Run(ctx)
 }
